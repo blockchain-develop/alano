@@ -39,5 +39,9 @@
   "resolutions": {
     "**/tslint-microsoft-contrib": "^6.0.0",
     "**/ethers": "^4.0.27"
+  },
+  "dependencies": {
+    "ontology-dapi": "^0.4.6",
+    "ontology-ts-sdk": "^1.0.12"
   }
 }
