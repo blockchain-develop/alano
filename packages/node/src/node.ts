@@ -119,7 +119,7 @@ export class Node {
     this.signer = await getHDNode(this.storeService);
     console.log(`Node signer address: ${this.signer.address}`);
     this.ontaccount = await getONTNode(this.storeService);
-    console.log(`Node ont signer address: ${this.ontaccount.address}`);
+    console.log(`Node ont signer address: ${this.ontaccount.address.toBase58()}`);
     this.requestHandler = new RequestHandler(
       this.publicIdentifier,
       this.incoming,

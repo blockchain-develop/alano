@@ -3,19 +3,17 @@ import ProxyFactory from "@counterfactual/contracts/build/ProxyFactory.json";
 import { xkeysToSortedKthAddresses } from "@counterfactual/machine";
 import { NetworkContext, Node } from "@counterfactual/types";
 import { Contract, Event, Signer } from "ethers";
+import { HashZero } from "ethers/constants";
 import { TransactionResponse } from "ethers/providers";
 import { Interface } from "ethers/utils";
+import { Account, Parameter, ParameterType, utils, RestClient, Crypto, TransactionBuilder } from "ontology-ts-sdk";
 import Queue from "p-queue";
 
 import { RequestHandler } from "../../../request-handler";
 import { CreateChannelMessage, NODE_EVENTS } from "../../../types";
 import { NodeController } from "../../controller";
 import { ERRORS } from "../../errors";
-import { Account, Parameter, ParameterType, utils, RestClient } from "ontology-ts-sdk";
-import { Address } from "ontology-ts-sdk/lib/types/crypto";
-import { reverseHex } from "ontology-ts-sdk/lib/types/utils";
-import { makeInvokeTransaction, signTransaction } from "ontology-ts-sdk/lib/types/transaction/transactionBuilder";
-import { HashZero } from "ethers/constants";
+
 
 // TODO: Add good estimate for ProxyFactory.createProxy
 const CREATE_PROXY_AND_SETUP_GAS = 6e6;
@@ -180,10 +178,10 @@ export default class CreateChannelController extends NodeController {
     const p1 = new Parameter('from', ParameterType.String, multisigOwners[0]);
     const p2 = new Parameter('from', ParameterType.String, multisigOwners[1]);
 
-    const contractAddr = new Address(reverseHex(networkContext.StateChannelTransaction));
+    const contractAddr = new Crypto.Address(utils.reverseHex(networkContext.StateChannelTransaction));
     
-    const tx = makeInvokeTransaction(utils.str2hexstr("createChannel"), [p1, p2], contractAddr, '500', '200000', ontaccount.address);
-    signTransaction(tx, ontaccount.exportPrivateKey("password"));
+    const tx = TransactionBuilder.makeInvokeTransaction(utils.str2hexstr("createChannel"), [p1, p2], contractAddr, '500', '200000', ontaccount.address);
+    TransactionBuilder.signTransaction(tx, ontaccount.exportPrivateKey("password"));
 
     const response = await ontclient.sendRawTransaction(tx.serialize(), true);
     console.log("ontology create channel response: " + JSON.stringify(response));
