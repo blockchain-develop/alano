@@ -20,6 +20,9 @@ export function configureNetworkContext(network: string): NetworkContext {
     case "kovan": {
       return getContractAddressesForNetwork(KovanContracts);
     }
+    case "ont": {
+      return getOntContractAddresses();
+    }
     default: {
       throw Error(
         `${ERRORS.INVALID_NETWORK_NAME}: ${network}. \n
@@ -59,6 +62,20 @@ function getContractAddressesForNetwork(
     ),
     ProxyFactory: getContractAddress(migrations, "ProxyFactory")
   };
+}
+
+function getOntContractAddresses(): NetworkContext {
+  return {
+    AppRegistry: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    ETHBalanceRefund: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    ETHBucket: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    MultiSend: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    NonceRegistry: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    StateChannelTransaction: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    ETHVirtualAppAgreement: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    MinimumViableMultisig: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba',
+    ProxyFactory: '20a24ea0d96ac4a9191b2bb84b2b4ca443ad10ba'
+  }
 }
 
 function getContractAddress(migrations: Migration[], contract: string): string {

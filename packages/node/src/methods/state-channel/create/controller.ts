@@ -3,7 +3,7 @@ import ProxyFactory from "@counterfactual/contracts/build/ProxyFactory.json";
 import { xkeysToSortedKthAddresses } from "@counterfactual/machine";
 import { NetworkContext, Node } from "@counterfactual/types";
 import { Contract, Event, Signer } from "ethers";
-import { TransactionReceipt, TransactionResponse } from "ethers/providers";
+import { TransactionResponse } from "ethers/providers";
 import { Interface } from "ethers/utils";
 import Queue from "p-queue";
 
@@ -11,6 +11,11 @@ import { RequestHandler } from "../../../request-handler";
 import { CreateChannelMessage, NODE_EVENTS } from "../../../types";
 import { NodeController } from "../../controller";
 import { ERRORS } from "../../errors";
+import { Account, Parameter, ParameterType, utils, RestClient } from "ontology-ts-sdk";
+import { Address } from "ontology-ts-sdk/lib/types/crypto";
+import { reverseHex } from "ontology-ts-sdk/lib/types/utils";
+import { makeInvokeTransaction, signTransaction } from "ontology-ts-sdk/lib/types/transaction/transactionBuilder";
+import { HashZero } from "ethers/constants";
 
 // TODO: Add good estimate for ProxyFactory.createProxy
 const CREATE_PROXY_AND_SETUP_GAS = 6e6;
@@ -47,20 +52,40 @@ export default class CreateChannelController extends NodeController {
     const {
       wallet,
       networkContext,
+      networkName,
+      ontclient,
+      ontaccount,
       blocksNeededForConfirmation
     } = requestHandler;
 
-    const tx = await this.sendMultisigDeployTx(owners, wallet, networkContext);
+    let multisigAddress: string;
+    let txhash: string;
 
-    tx.wait(blocksNeededForConfirmation).then(receipt =>
-      this.handleDeployedMultisigOnChain(receipt, requestHandler, params)
-    );
+    if (networkName == "ont") {
+      multisigAddress = await this.sendMultisigDeployTxOnt(owners, ontaccount, ontclient, networkContext);
+      this.handleDeployedMultisigOnChain(multisigAddress, requestHandler, params);
+      // try to get transaction hash
+      txhash = HashZero;
+    } else {
+      const tx = await this.sendMultisigDeployTx(owners, wallet, networkContext);
+      tx.wait(blocksNeededForConfirmation).then(receipt => {
+        try {
+          multisigAddress = (receipt["events"] as Event[])!.pop()!.args![0];
+        } catch (e) {
+          console.error(`Invalid multisig deploy tx receipt: ${receipt}`);
+          throw e;
+        }
+        this.handleDeployedMultisigOnChain(multisigAddress, requestHandler, params)
+        txhash = tx.hash!;
+      }
+      );
+    }
 
-    return { transactionHash: tx.hash! };
+    return { transactionHash: txhash! };
   }
 
   private async handleDeployedMultisigOnChain(
-    receipt: TransactionReceipt,
+    multisigAddress: string,
     requestHandler: RequestHandler,
     params: Node.CreateChannelParams
   ) {
@@ -71,15 +96,6 @@ export default class CreateChannelController extends NodeController {
       messagingService,
       store
     } = requestHandler;
-
-    let multisigAddress: string;
-
-    try {
-      multisigAddress = (receipt["events"] as Event[])!.pop()!.args![0];
-    } catch (e) {
-      console.error(`Invalid multisig deploy tx receipt: ${receipt}`);
-      throw e;
-    }
 
     const [respondingXpub] = owners.filter(x => x !== publicIdentifier);
 
@@ -151,5 +167,42 @@ export default class CreateChannelController extends NodeController {
       }
     }
     return Promise.reject(`${ERRORS.CHANNEL_CREATION_FAILED}: ${error}`);
+  }
+
+  private async sendMultisigDeployTxOnt(
+    xpubs: string[],
+    ontaccount: Account,
+    ontclient: RestClient,
+    networkContext: NetworkContext
+  ): Promise<string> {
+    const multisigOwners = xkeysToSortedKthAddresses(xpubs, 0);
+
+    const p1 = new Parameter('from', ParameterType.String, multisigOwners[0]);
+    const p2 = new Parameter('from', ParameterType.String, multisigOwners[1]);
+
+    const contractAddr = new Address(reverseHex(networkContext.StateChannelTransaction));
+    
+    const tx = makeInvokeTransaction(utils.str2hexstr("createChannel"), [p1, p2], contractAddr, '500', '200000', ontaccount.address);
+    signTransaction(tx, ontaccount.exportPrivateKey("password"));
+
+    const response = await ontclient.sendRawTransaction(tx.serialize(), true);
+    console.log("ontology create channel response: " + JSON.stringify(response));
+
+    const notifys = response.Result.Notify;
+    const state = response.Result.State;
+    if (state == 1) {
+      for (const notify of notifys) {
+        if (notify.ContractAddress == networkContext.StateChannelTransaction) {
+          const event = notify.States;
+          if (event[0] == utils.str2hexstr("createChannel")) {
+            return event[1];
+          }
+        }
+      }
+    } else {
+      return Promise.reject(`${ERRORS.CHANNEL_CREATION_FAILED}: what's wrong?`);
+    }
+
+    return Promise.reject(`${ERRORS.CHANNEL_CREATION_FAILED}: what's wrong?`);
   }
 }
