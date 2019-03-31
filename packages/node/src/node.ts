@@ -9,6 +9,7 @@ import { BaseProvider } from "ethers/providers";
 import { SigningKey } from "ethers/utils";
 import { HDNode } from "ethers/utils/hdnode";
 import EventEmitter from "eventemitter3";
+import { Account, RestClient } from "ontology-ts-sdk";
 import { Memoize } from "typescript-memoize";
 
 import AutoNonceWallet from "./auto-nonce-wallet";
@@ -16,7 +17,7 @@ import { Deferred } from "./deferred";
 import { configureNetworkContext } from "./network-configuration";
 import { RequestHandler } from "./request-handler";
 import { IMessagingService, IStoreService } from "./services";
-import { getHDNode } from "./signer";
+import { getHDNode, getONTNode } from "./signer";
 import {
   NODE_EVENTS,
   NodeMessage,
@@ -46,6 +47,7 @@ export class Node {
 
   private readonly instructionExecutor: InstructionExecutor;
   private readonly networkContext: NetworkContext;
+  private readonly networkName!: string;
 
   private ioSendDeferrals = new Map<
     string,
@@ -55,6 +57,7 @@ export class Node {
   // These properties don't have initializers in the constructor and get
   // initialized in the `asynchronouslySetupUsingRemoteServices` function
   private signer!: HDNode;
+  private ontaccount!: Account;
   protected requestHandler!: RequestHandler;
 
   static async create(
@@ -62,6 +65,7 @@ export class Node {
     storeService: IStoreService,
     nodeConfig: NodeConfig,
     provider: BaseProvider,
+    ontclient: RestClient,
     networkOrNetworkContext: string | NetworkContext,
     blocksNeededForConfirmation?: number
   ): Promise<Node> {
@@ -70,6 +74,7 @@ export class Node {
       storeService,
       nodeConfig,
       provider,
+      ontclient,
       networkOrNetworkContext,
       blocksNeededForConfirmation
     );
@@ -82,6 +87,7 @@ export class Node {
     private readonly storeService: IStoreService,
     private readonly nodeConfig: NodeConfig,
     private readonly provider: BaseProvider,
+    private readonly ontclient: RestClient,
     networkContext: string | NetworkContext,
     readonly blocksNeededForConfirmation?: number
   ) {
@@ -89,6 +95,7 @@ export class Node {
     this.outgoing = new EventEmitter();
     this.blocksNeededForConfirmation = REASONABLE_NUM_BLOCKS_TO_WAIT;
     if (typeof networkContext === "string") {
+      this.networkName = networkContext;
       this.networkContext = configureNetworkContext(networkContext);
 
       if (
@@ -111,6 +118,8 @@ export class Node {
   private async asynchronouslySetupUsingRemoteServices(): Promise<Node> {
     this.signer = await getHDNode(this.storeService);
     console.log(`Node signer address: ${this.signer.address}`);
+    this.ontaccount = await getONTNode(this.storeService);
+    console.log(`Node ont signer address: ${this.ontaccount.address}`);
     this.requestHandler = new RequestHandler(
       this.publicIdentifier,
       this.incoming,
@@ -119,8 +128,11 @@ export class Node {
       this.messagingService,
       this.instructionExecutor,
       this.networkContext,
+      this.networkName,
       this.provider,
+      this.ontclient,
       new AutoNonceWallet(this.signer.privateKey, this.provider),
+      this.ontaccount,
       `${this.nodeConfig.STORE_KEY_PREFIX}/${this.publicIdentifier}`,
       this.blocksNeededForConfirmation!
     );

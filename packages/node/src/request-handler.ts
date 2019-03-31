@@ -3,6 +3,7 @@ import { NetworkContext, Node } from "@counterfactual/types";
 import { Signer } from "ethers";
 import { BaseProvider, JsonRpcProvider } from "ethers/providers";
 import EventEmitter from "eventemitter3";
+import { Account, RestClient } from "ontology-ts-sdk";
 import Queue from "p-queue";
 
 import {
@@ -32,8 +33,11 @@ export class RequestHandler {
     readonly messagingService: IMessagingService,
     readonly instructionExecutor: InstructionExecutor,
     readonly networkContext: NetworkContext,
+    readonly networkName: string,
     readonly provider: BaseProvider,
+    readonly ontclient: RestClient,
     readonly wallet: Signer,
+    readonly ontaccount: Account,
     storeKeyPrefix: string,
     readonly blocksNeededForConfirmation: number
   ) {

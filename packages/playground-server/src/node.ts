@@ -15,6 +15,7 @@ import { JsonRpcProvider } from "ethers/providers";
 import { formatEther } from "ethers/utils";
 import FirebaseServer from "firebase-server";
 import { Log } from "logepi";
+import { CONST, RestClient } from "ontology-ts-sdk";
 import { v4 as generateUUID } from "uuid";
 
 import { bindMultisigToUser, getUsernameFromMultisigAddress } from "./db";
@@ -168,6 +169,7 @@ export default class NodeWrapper {
         new JsonRpcProvider(
           `https://${networkOrNetworkContext}.infura.io/metamask`
         ),
+      new RestClient(CONST.TEST_ONT_URL.REST_URL),
       networkOrNetworkContext
     );
 

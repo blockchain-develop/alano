@@ -1,5 +1,8 @@
 import { IMessagingService, IStoreService } from "@counterfactual/node";
 import { NetworkContext, Node as NodeTypes } from "@counterfactual/types";
+//import { RestClient} from "ontology-ts-sdk";
+//import { CONST, RestClient } from "ontology-ts-sdk";
+//import { Ont as ontologyTsSdk } from "@counterfactual/browser";
 
 // This is a mimic type declaration of the Node, used locally to prevent
 // Stencil from blowing up due to "member not exported" errors.
@@ -11,6 +14,7 @@ export declare class Node {
     nodeConfig: NodeConfig,
     // @ts-ignore
     provider: ethers.providers.Provider,
+    ontclient: RestClient,
     network: string,
     networkContext?: NetworkContext
   ): Promise<Node>;
@@ -23,6 +27,10 @@ export declare class Node {
     method: NodeTypes.MethodName,
     req: NodeTypes.MethodRequest
   ): Promise<NodeTypes.MethodResponse>;
+}
+
+declare class RestClient {
+  constructor(url ?: string);
 }
 
 export interface NodeConfig {
@@ -52,6 +60,9 @@ export default class CounterfactualNode {
       settings.storeService,
       settings.nodeConfig,
       new ethers.providers.Web3Provider(window["web3"].currentProvider),
+      false,
+      //new RestClient('http://polaris1.ont.io:2-335'),
+      //new RestClient('http://polaris1.ont.io:2-335'),
       settings.network
     );
 
