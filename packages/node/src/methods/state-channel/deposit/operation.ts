@@ -4,9 +4,12 @@ import {
   Node,
   SolidityABIEncoderV2Struct
 } from "@counterfactual/types";
-import { AddressZero, MaxUint256, Zero } from "ethers/constants";
+import { AddressZero, MaxUint256, Zero, HashZero } from "ethers/constants";
 import { TransactionRequest, TransactionResponse } from "ethers/providers";
 import { BigNumber, bigNumberify } from "ethers/utils";
+import { Parameter, ParameterType, utils, Crypto, TransactionBuilder } from "ontology-ts-sdk";
+import { client } from "ontology-dapi";
+//import { client, ParameterType as DParameterType, Parameter as DParameter } from "ontology-dapi";
 
 import { RequestHandler } from "../../../request-handler";
 import { NODE_EVENTS } from "../../../types";
@@ -80,12 +83,12 @@ export async function installBalanceRefundApp(
   await store.saveStateChannel(stateChannelsMap.get(params.multisigAddress)!);
 }
 
-export async function makeDeposit(
+export async function makeDepositEth(
   requestHandler: RequestHandler,
   params: Node.DepositParams
-): Promise<boolean> {
+  ): Promise<string> {
   const { multisigAddress, amount } = params;
-  const { provider, blocksNeededForConfirmation, outgoing } = requestHandler;
+  const { provider, blocksNeededForConfirmation } = requestHandler;
 
   const signer = await requestHandler.getSigner();
 
@@ -105,9 +108,8 @@ export async function makeDeposit(
       break;
     } catch (e) {
       if (e.toString().includes("reject") || e.toString().includes("denied")) {
-        outgoing.emit(NODE_EVENTS.DEPOSIT_FAILED, e);
         console.error(`${ERRORS.DEPOSIT_FAILED}: ${e}`);
-        return false;
+        throw e;
       }
 
       retryCount -= 1;
@@ -118,15 +120,98 @@ export async function makeDeposit(
     }
   }
 
-  outgoing.emit(NODE_EVENTS.DEPOSIT_STARTED, {
-    value: amount,
-    txHash: txResponse!.hash
-  });
-
   await provider.waitForTransaction(
     txResponse!.hash as string,
     blocksNeededForConfirmation
   );
+
+  return txResponse!.hash! 
+}
+
+export async function makeDepositOnt(
+  requestHandler: RequestHandler,
+  params: Node.DepositParams
+  ): Promise<string> {
+  const { multisigAddress, amount } = params;
+  const {
+    networkContext,
+    ontclient,
+    ontaccount
+  } = requestHandler;
+
+  const signer = await requestHandler.getOntSigner();
+
+  if (signer == 1) {
+    const scriptHash = networkContext.StateChannelTransaction;
+    const operation = utils.str2hexstr("deposit");
+    //const p1 = new DParameter('from', DParameterType.string, multisigAddress);
+    //const p2 = new DParameter('from', DParameterType.Int, amount);
+    //const args : DParameter[] = [{type: 'string', value: multisigAddress}, {type: {'int'}, value: amount}];
+    //const args;
+    //const response = await client.api.smartContract.invoke({scriptHash, operation, args, 500, 200000});
+    const response = await client.api.smartContract.invoke({scriptHash, operation});
+    console.log("ontology deposit response: " + JSON.stringify(response));
+
+    //const notifys = response.Result.Notify;
+    const txhash = response.transaction;
+    return txhash;
+  } else {
+    const p1 = new Parameter('from', ParameterType.String, multisigAddress);
+    const p2 = new Parameter('from', ParameterType.Int, amount);
+    const contractAddr = new Crypto.Address(utils.reverseHex(networkContext.StateChannelTransaction));
+    const tx = TransactionBuilder.makeInvokeTransaction(utils.str2hexstr("deposit"), [p1, p2], contractAddr, '500', '200000', ontaccount.address);
+    TransactionBuilder.signTransaction(tx, ontaccount.exportPrivateKey("password"));
+    const response = await ontclient.sendRawTransaction(tx.serialize(), true);
+    console.log("ontology deposit response: " + JSON.stringify(response));
+
+    //const notifys = response.Result.Notify;
+    const state = response.Result.State;
+    if (state == 1) {
+      /*
+      for (const notify of notifys) {
+        if (notify.ContractAddress == networkContext.StateChannelTransaction) {
+          const event = notify.States;
+          if (event[0] == utils.str2hexstr("deposit")) {
+            return event[1];
+          }
+        }
+      }
+      */
+      return HashZero;
+    } else {
+      return Promise.reject(`${ERRORS.DEPOSIT_FAILED}: what's wrong?`);
+    }
+  }
+}
+
+export async function makeDeposit(
+  requestHandler: RequestHandler,
+  params: Node.DepositParams
+): Promise<boolean> {
+  const { networkName, outgoing } = requestHandler;
+  const { amount } = params;
+  let txhash: string;
+
+  if (networkName == "ont") {
+    try {
+      txhash = await makeDepositOnt(requestHandler, params);
+    } catch(e) {
+      outgoing.emit(NODE_EVENTS.DEPOSIT_FAILED, e);
+      return false;
+    }
+  } else {
+    try {
+      txhash = await makeDepositEth(requestHandler, params);
+    } catch(e) {
+      outgoing.emit(NODE_EVENTS.DEPOSIT_FAILED, e);
+      return false;
+    }
+  }
+
+  outgoing.emit(NODE_EVENTS.DEPOSIT_STARTED, {
+    value: amount,
+    txHash: txhash!
+  });
 
   return true;
 }

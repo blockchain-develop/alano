@@ -6,7 +6,7 @@ import { Contract, Event, Signer } from "ethers";
 import { HashZero } from "ethers/constants";
 import { TransactionResponse } from "ethers/providers";
 import { Interface } from "ethers/utils";
-import { Account, Parameter, ParameterType, utils, RestClient, Crypto, TransactionBuilder } from "ontology-ts-sdk";
+import { Account, Parameter, ParameterType, utils, Crypto, RestClient, TransactionBuilder } from "ontology-ts-sdk";
 import Queue from "p-queue";
 
 import { RequestHandler } from "../../../request-handler";

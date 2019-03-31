@@ -3,6 +3,7 @@ import { NetworkContext, Node } from "@counterfactual/types";
 import { Signer } from "ethers";
 import { BaseProvider, JsonRpcProvider } from "ethers/providers";
 import EventEmitter from "eventemitter3";
+import { client } from 'ontology-dapi';
 import { Account, RestClient } from "ontology-ts-sdk";
 import Queue from "p-queue";
 
@@ -135,5 +136,14 @@ export class RequestHandler {
   public async getSignerAddress(): Promise<string> {
     const signer = await this.getSigner();
     return await signer.getAddress();
+  }
+
+  public async getOntSigner(): Promise<number> {
+    try {
+      await client.api.provider.getProvider();
+      return 1;
+    } catch (e) {
+      return 0;
+    }
   }
 }
